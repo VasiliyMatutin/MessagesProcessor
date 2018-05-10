@@ -4,10 +4,12 @@
     <string name="target_language_request">Target language:</string>
     <string name="enable_service">Enable service</string>
     <string name="ok">OK</string>
+    <string name="speak">Speak</string>
     <string name="exit">Exit</string>
+    <string name="dismiss">Dismiss</string>
     <string name="notification_title">New incoming message may be translated</string>
     <string name="notification_text">Click to open translation</string>
-    <string name="message_string">Message</string>
+    <string name="message_string">TRANSLATED MESSAGE</string>
     <string name="sms_access_required">SMS access is required to conduct message translation.</string>
     <string name="sms_unavailable"><b>Service could not be started.</b>\nThis occurs when the sms permission is not granted.</string>
     <string name="voice_request">Do you want to voice the message?</string>

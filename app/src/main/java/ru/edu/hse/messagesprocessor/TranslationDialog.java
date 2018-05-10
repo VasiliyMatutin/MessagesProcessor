@@ -1,7 +1,9 @@
 package ru.edu.hse.messagesprocessor;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.AlertDialog;
+import android.app.Service;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -21,11 +23,11 @@ public class TranslationDialog extends Activity {
     public static final String TRANSLATION_KEY = "translation_key";
     public static final String KEY_IS_VOICE_ENABLED = "is_voice_enabled";
 
-    String translated;
+    private Speaker speaker;
+    private String translated;
 
     boolean bound = false;
     private ServiceConnection serviceConnection;
-    private Intent intent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,76 +37,79 @@ public class TranslationDialog extends Activity {
         Bundle extras = getIntent().getExtras();
         translated = (extras == null) ? null : extras.getString(TRANSLATION_KEY);
 
-        startService(new Intent(this, Speaker.class));
-
-        if(translated != null)
-            displayResult();
-
         serviceConnection = new ServiceConnection() {
             public void onServiceConnected(ComponentName name, IBinder binder) {
                 bound = true;
+                Speaker.LocalBinder localBinder = (Speaker.LocalBinder) binder;
+                speaker = localBinder.getService();
             }
 
             public void onServiceDisconnected(ComponentName name) {
                 bound = false;
+                speaker = null;
             }
         };
+
+        //Intent intent = new Intent(TranslationDialog.this, Speaker.class);
+        startService(new Intent(this, Speaker.class));
+
+        if(translated != null)
+            displayResult();
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Intent intent = new Intent(this, Speaker.class);
+        bindService(intent, serviceConnection, BIND_AUTO_CREATE);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Unbind from the service
+        if (bound) {
+            unbindService(serviceConnection);
+            bound = false;
+        }
+    }
     private void displayResult(){
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        String message =  getResources().getString(R.string.message_string) + ":\n"
-                        + translated + "\n\n"
-                        + getResources().getString(R.string.voice_request);
+        String message =  getResources().getString(R.string.message_string) + "\n\n" + translated;
 
 
         builder.setMessage(message)
                 .setCancelable(false)
-                .setPositiveButton(R.string.ok, null)
-                .setNegativeButton(R.string.exit, new DialogInterface.OnClickListener() {
+                .setPositiveButton(R.string.speak, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int id) {
+
+                    }
+                })
+                .setNegativeButton(R.string.dismiss, new DialogInterface.OnClickListener() {
+                    @Override
                     public void onClick(DialogInterface dialog, int id) {
                         dialog.dismiss();
                         finish();
-                        //TODO: close the app
                     }
                 });
-        final AlertDialog alert = builder.create();
-
-        alert.setOnShowListener(new DialogInterface.OnShowListener() {
+        final AlertDialog dialog = builder.create();
+        dialog.show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onShow(DialogInterface dialogInterface) {
+            public void onClick(View view) {
+                checkTTSVoiceData();
 
-                final Button button = alert.getButton(AlertDialog.BUTTON_POSITIVE);;
-                button.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        Log.i(this.getClass().getSimpleName(), "Positive button clicked");
+                String customSharedPrefs = getResources().getString(R.string.custom_shared_preferences);
+                SharedPreferences sharedPref = getSharedPreferences(customSharedPrefs, Context.MODE_PRIVATE);
+                Boolean isVoiceEnabled = sharedPref.getBoolean(TranslationDialog.KEY_IS_VOICE_ENABLED, false);
 
-                        checkTTSVoiceData();
-
-                        String customSharedPrefs = getResources().getString(R.string.custom_shared_preferences);
-                        SharedPreferences sharedPref = getSharedPreferences(customSharedPrefs, Context.MODE_PRIVATE);
-                        Boolean isVoiceEnabled = sharedPref.getBoolean(TranslationDialog.KEY_IS_VOICE_ENABLED, false);
-
-                        Log.i(this.getClass().getSimpleName(), "isVoiceEnabled " + isVoiceEnabled);
-                        if(isVoiceEnabled) {
-                            Log.i(this.getClass().getSimpleName(), "Enabled. Binding service.");
-                            intent = new Intent(TranslationDialog.this, Speaker.class);
-                            intent.putExtra(Speaker.TEXT_KEY, translated);
-                            bindService(intent, serviceConnection, BIND_AUTO_CREATE);
-                            unbindService(serviceConnection);
-                        }
-
-
-                        // remove next two lines if you need the dialog to stay.
-                        // Note: it won't be speaking more than once, idk why yet
-                        //alert.dismiss();
-                        //finish();
-                    }
-                });
+                if(isVoiceEnabled) {
+                    if(speaker != null && isServiceRunning(Speaker.class))
+                        speaker.speak(translated, true);
+                }
             }
         });
-        alert.show();
     }
 
     private void checkTTSVoiceData(){
@@ -143,5 +148,15 @@ public class TranslationDialog extends Activity {
     protected void onDestroy() {
         this.stopService(new Intent(this, Speaker.class));
         super.onDestroy();
+    }
+
+    private boolean isServiceRunning(Class<?> serviceClass) {
+        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+            if (serviceClass.getName().equals(service.service.getClassName())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

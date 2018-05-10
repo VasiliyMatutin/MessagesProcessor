@@ -4,6 +4,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Binder;
 import android.os.IBinder;
 import android.speech.tts.TextToSpeech;
 import android.support.annotation.Nullable;
@@ -13,7 +14,10 @@ import android.widget.Toast;
 import java.util.Locale;
 
 public class Speaker extends Service implements TextToSpeech.OnInitListener {
+
     private static TextToSpeech mTTS = null;
+    private final IBinder binder = new LocalBinder();
+
     public static final int CHECK_TTS_DATA = 1000;
 
     public static final String TEXT_KEY = "text_key";
@@ -113,13 +117,13 @@ public class Speaker extends Service implements TextToSpeech.OnInitListener {
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
-        String text = intent.getExtras().getString(TEXT_KEY);
-        Boolean qmode = intent.getExtras().getBoolean(Q_KEY);
+        return binder;
+    }
 
-        Log.i(this.getClass().getSimpleName(), "onBind() " + text);
-        speak(text, null == qmode ? true : qmode);
-
-        return null;
+    public class LocalBinder extends Binder {
+        public Speaker getService() {
+            return Speaker.this;
+        }
     }
 
 }
